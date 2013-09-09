@@ -19,6 +19,8 @@
 */
 
 //`define HALFRAM		// SET this to target DE0-Nano (in quartus assignments/settings/verilog hdl)
+
+`define NOMULTICORE
 	
 `timescale 1ns/1ps
 
