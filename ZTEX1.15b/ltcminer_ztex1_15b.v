@@ -11,8 +11,7 @@
 `include "../source/hashcore.v"
 
 //`define NOMULTICORE
-
-module ltcminer_ztex1_15b (osc_clk, RxD, TxD, led, extminer_rxd, extminer_txd, dip, TMP_SCL, TMP_SDA, TMP_ALERT);
+module ltcminer_ztex1_15b (osc_clk, RxD, TxD, extminer_rxd, extminer_txd, dip);
 
 // NB SPEED_MHZ resolution is 5MHz steps to keep pll divide ratio sensible. Change the divider in xilinx_pll.v if you
 // want other steps (1MHz is not sensible as it requires divide 100 which is not in the allowed range 1..32 for DCM_SP)
@@ -63,10 +62,6 @@ module ltcminer_ztex1_15b (osc_clk, RxD, TxD, led, extminer_rxd, extminer_txd, d
 `endif
 
 	localparam SLAVES = LOCAL_MINERS + EXT_PORTS;
-
-	input TMP_SCL, TMP_SDA, TMP_ALERT;	// Unused but set to PULLUP so as to avoid turning on the HOT LED
-										// TODO implement I2C protocol to talk to temperature sensor chip (TMP101?)
-										// and drive FAN speed control output.
 
 	input [3:0]dip;
 	wire reset, nonce_chip;
@@ -173,14 +168,4 @@ module ltcminer_ztex1_15b (osc_clk, RxD, TxD, led, extminer_rxd, extminer_txd, d
 			slave_receive #(.comm_clk_frequency(comm_clk_frequency), .baud_rate(BAUD_RATE)) slrx (.clk(uart_clk), .RxD(extminer_rxd[j-LOCAL_MINERS]), .nonce(slave_nonces[j*32+31:j*32]), .new_nonce(new_nonces[j]));
 		end
 	endgenerate
-
-	output [3:0] led;
-	assign led[1] = ~RxD;
-	assign led[2] = ~TxD;
-	assign led[3] = ~ (TMP_SCL | TMP_SDA | TMP_ALERT);	// IDLE LED - held low (the TMP pins are PULLUP, this is a fudge to
-														// avoid warning about unused inputs)
-
-	// Light up only from locally found nonces, not ext_port results
-	pwm_fade pf (.clk(uart_clk), .trigger(|new_nonces[LOCAL_MINERS-1:0]), .drive(led[0]));
-   
 endmodule

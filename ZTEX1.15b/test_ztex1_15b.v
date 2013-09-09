@@ -42,19 +42,18 @@ module test_ltcminer ();
 	wire extminer_txd;
 	wire [3:0] dip = 0;
 	wire [3:0] led;
-	wire TMP_SCL=1, TMP_SDA=1, TMP_ALERT=1;
 	
 	parameter comm_clk_frequency = 1_000_000;	// Speeds up serial loading enormously rx_done is at t=70,220nS
 	parameter baud_rate = 115_200;
 	
 	ltcminer_ztex1_15b #(.comm_clk_frequency(comm_clk_frequency)) uut
-		(clk, RxD, TxD, led, extminer_rxd, extminer_txd, dip, TMP_SCL, TMP_SDA, TMP_ALERT);
+		(clk, RxD, TxD, extminer_rxd, extminer_txd, dip);
 
 	// Send serial data - 84 bytes, matches on nonce 318f (included in data)
 	// NB starting nonce is 381e NOT 381f (see note above)
 	reg [671:0] data = 672'h000007ff0000318e7e71441b141fe951b2b0c7dfc791d4646240fc2a2d1b80900020a24dc501ef1599fc48ed6cbac920af75575618e7b1e8eaf0b62a90d1942ea64d250357e9a09c063a47827c57b44e01000000;
 	
-	reg			serial_send = 0;
+	reg		serial_send = 0;
 	wire		serial_busy;
 	reg [31:0]	data_32 = 0;
 	reg [31:0]	start_cycle = 0;
