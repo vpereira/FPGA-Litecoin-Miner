@@ -1,0 +1,1 @@
+../../scripts/jtag_comm.tcl
