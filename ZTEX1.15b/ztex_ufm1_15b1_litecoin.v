@@ -116,7 +116,7 @@ module ztex_ufm1_15b1 (fxclk_in, reset, pll_stop,  dcm_progclk, dcm_progdata, dc
 	begin
     	if ( (rd_clk_b[3] == rd_clk_b[2]) && (rd_clk_b[2] == rd_clk_b[1]) && (rd_clk_b[1] != rd_clk_b[0]) )
 		begin
-		    inbuf_tmp[639:625] <= read_buf;			// NB changed from 351 in original
+		    inbuf_tmp[639:632] <= read_buf;			// NB changed from 351 in original
 		    inbuf_tmp[631:0] <= inbuf_tmp[639:8];
 		end;
 		inbuf <= inbuf_tmp;  // due to TIG's
