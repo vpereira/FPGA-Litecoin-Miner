@@ -31,7 +31,8 @@ module ztex_ufm1_15b1 (fxclk_in, reset, pll_stop,  dcm_progclk, dcm_progdata, dc
 	reg wr_start_b1, wr_start_b2, reset_buf;
 	reg dcm_progclk_buf, dcm_progdata_buf, dcm_progen_buf;
 	reg [4:0] wr_delay;
-	reg [671:0] inbuf, inbuf_tmp;
+	reg [639:0] inbuf, inbuf_tmp;
+	//reg [671:0] inbuf, inbuf_tmp;
 	reg [95:0] outbuf;
 	reg [7:0] read_buf, write_buf;
 	
@@ -42,7 +43,8 @@ module ztex_ufm1_15b1 (fxclk_in, reset, pll_stop,  dcm_progclk, dcm_progdata, dc
 	wire [127:0]	data3;
 	wire [31:0]		target;
 
-	assign			target = inbuf[671:640];
+   assign target = 32'h000007FF;
+	//assign			target = inbuf[671:640];
 	assign			data3 = inbuf[639:512];
 	assign			data2 = inbuf[511:256];
 	assign			data1 = inbuf[255:0];
@@ -112,10 +114,10 @@ module ztex_ufm1_15b1 (fxclk_in, reset, pll_stop,  dcm_progclk, dcm_progdata, dc
 	
 	always @ (posedge clk)
 	begin
-    		if ( (rd_clk_b[3] == rd_clk_b[2]) && (rd_clk_b[2] == rd_clk_b[1]) && (rd_clk_b[1] != rd_clk_b[0]) )
+    	if ( (rd_clk_b[3] == rd_clk_b[2]) && (rd_clk_b[2] == rd_clk_b[1]) && (rd_clk_b[1] != rd_clk_b[0]) )
 		begin
-		    inbuf_tmp[671:664] <= read_buf;			// NB changed from 351 in original
-		    inbuf_tmp[663:0] <= inbuf_tmp[671:8];
+		    inbuf_tmp[639:625] <= read_buf;			// NB changed from 351 in original
+		    inbuf_tmp[631:0] <= inbuf_tmp[639:8];
 		end;
 		inbuf <= inbuf_tmp;  // due to TIG's
 		    
@@ -131,35 +133,29 @@ module ztex_ufm1_15b1 (fxclk_in, reset, pll_stop,  dcm_progclk, dcm_progdata, dc
 		if ( ! wr_delay[4] ) 
 		begin
    		    outbuf <= { hash2, nonce2, golden_nonce };
-   		end else
-   		begin
+   	end else
+   	begin
 		    if ( (wr_clk_b[3] == wr_clk_b[2]) && (wr_clk_b[2] == wr_clk_b[1]) && (wr_clk_b[1] != wr_clk_b[0]) ) 
-			outbuf[87:0] <= outbuf[95:8];
-   		end
+				outbuf[87:0] <= outbuf[95:8];
+			 end
+			read_buf <= read;
+			write_buf <= outbuf[7:0];
 
-		read_buf <= read;
-		write_buf <= outbuf[7:0];
+			rd_clk_b[0] <= rd_clk;
+			rd_clk_b[3:1] <= rd_clk_b[2:0];
 
-		rd_clk_b[0] <= rd_clk;
-		rd_clk_b[3:1] <= rd_clk_b[2:0];
+			wr_clk_b[0] <= wr_clk;
+			wr_clk_b[3:1] <= wr_clk_b[2:0];
 
-		wr_clk_b[0] <= wr_clk;
-		wr_clk_b[3:1] <= wr_clk_b[2:0];
+			wr_start_b1 <= wr_start;
+			wr_start_b2 <= wr_start_b1;
+			reset_buf <= reset;
+		end
 
-		wr_start_b1 <= wr_start;
-		wr_start_b2 <= wr_start_b1;
-
-		
-		reset_buf <= reset;
-	end
-
-	always @ (posedge fxclk)
-	begin
-		dcm_progclk_buf <= dcm_progclk;
-		dcm_progdata_buf <= dcm_progdata;
-		dcm_progen_buf <= dcm_progen;
-	end
-
-
+		always @ (posedge fxclk)
+		begin
+			dcm_progclk_buf <= dcm_progclk;
+			dcm_progdata_buf <= dcm_progdata;
+			dcm_progen_buf <= dcm_progen;
+		end
 endmodule
-
