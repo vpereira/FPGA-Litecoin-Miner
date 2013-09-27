@@ -43,7 +43,7 @@ module ztex_ufm1_15b1 (fxclk_in, reset, pll_stop,  dcm_progclk, dcm_progdata, dc
 	wire [127:0]	data3;
 	wire [31:0]		target;
 
-   assign target = 32'h000007FF;
+        assign target = 32'h000007FF;
 	//assign			target = inbuf[671:640];
 	assign			data3 = inbuf[639:512];
 	assign			data2 = inbuf[511:256];
