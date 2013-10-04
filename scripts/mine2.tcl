@@ -31,12 +31,13 @@ package require base64
 
 source utils.tcl
 source json_rpc.tcl
-source jtag_comm.tcl
+source jtag_comm2.tcl
+
 
 # Configuration
 # -------------
 # Additional DEBUG output getwork and current nonce ...
-set verbose 0
+set verbose 1
 # Reads getwork (including nonce) from a file ...
 set testmode 0
 # Delay between getwork requests (in seconds) ...
@@ -52,6 +53,9 @@ set test_prevnonce 0
 set prevtarget "none"
 # Diff is just used for reporting, calculated from target so this is overwritten
 set diff 32
+
+array set fpgas {}
+
 
 proc say_line {msg} {
 	set t [clock format [clock seconds] -format "%D %T"]
@@ -91,64 +95,66 @@ proc wait_for_golden_ticket {timeout} {
 	global total_rejected
 	global global_start_time
 	global diff
-	
+	global fpgas
 	#puts "Current nonce"
 	#set current_nonce [read_instance GNON]
 	#puts $current_nonce
-	set last_nonce [get_current_fpga_nonce]
 	set begin_time [clock clicks -milliseconds]
 
 	#puts "FPGA is now searching for lottery ticket..."
 
 	while {$timeout > 0} {
-		set golden_nonce [get_result_from_fpga]
+ 		foreach fpga [ array names fpgas ] { 
+			set last_nonce [get_current_fpga_nonce $fpga $fpgas($fpga) ]
+			set golden_nonce [get_result_from_fpga $fpga $fpgas($fpga) ]
 
-		if {$golden_nonce != -1} {
-			return $golden_nonce
-		}
-
-		# TODO: We may need to sleep for a small amount of time to avoid taxing the CPU
-		# Or the JTAG comms might throttle back our CPU usage anyway.
-		# If the FPGA had a proper results queue we could just sleep for a second, but
-		# for now we might as well loop as fast as possible
-		
-		set now [clock clicks -milliseconds]
-		if { [expr {$now - $begin_time}] >= 2000 } {
-			incr timeout -2
-
-			set current_nonce [get_current_fpga_nonce]
-			set dt [expr {$now - $begin_time}]
-			set begin_time $now
-
-			#XXX:
-			#if we have more than 1 fpga we should divide the whole nonce space
-			#lets design a scenario with two boards
-			if {$current_nonce < $last_nonce} {
-				set nonces [expr {$current_nonce + (0xFFFFFFFF - $last_nonce) + 1}]
-			} else {
-				set nonces [expr {$current_nonce - $last_nonce + 1}]
+			if {$golden_nonce != -1} {
+				return $golden_nonce
 			}
 
-			set last_nonce $current_nonce
+			# TODO: We may need to sleep for a small amount of time to avoid taxing the CPU
+			# Or the JTAG comms might throttle back our CPU usage anyway.
+			# If the FPGA had a proper results queue we could just sleep for a second, but
+			# for now we might as well loop as fast as possible
+			
+			set now [clock clicks -milliseconds]
+			if { [expr {$now - $begin_time}] >= 2000 } {
+				incr timeout -2
 
-			if {$dt == 0} {
-				set dt 1
+				set current_nonce [get_current_fpga_nonce $fpga $fpgas($fpga) ]
+				set dt [expr {$now - $begin_time}]
+				set begin_time $now
+
+				#XXX:
+				#if we have more than 1 fpga we should divide the whole nonce space
+				#lets design a scenario with two boards
+				if {$current_nonce < $last_nonce } {
+					set nonces [expr {$current_nonce + (0xFFFFFFFF - $last_nonce) + 1}]
+				} else {
+					set nonces [expr {$current_nonce - $last_nonce + 1}]
+				}
+
+				set last_nonce $current_nonce
+
+				if {$dt == 0} {
+					set dt 1
+				}
+
+				# set rate [expr {$nonces / ($dt * 1000.0)}]
+				set rate [expr {$nonces / ($dt * 1.0)} * [array size fpgas]]
+				set current_time [clock seconds]
+				
+				# Adding 0.00001 to the denom is a quick way to avoid divide by zero :P
+				
+				# BTC: each share is worth ~(2^32 / 1,000,000) MH/s
+				# set est_rate [expr {($total_accepted + $total_rejected) * 4294.967296 / ($current_time - $global_start_time + 0.00001)}]
+				
+				# LTC: each share is worth ~(2^32 / 0x7ff / 1,000) kH/s ... sort of a guess really
+				# Difficulty is calculated from target ...
+				set est_rate [expr {($total_accepted + $total_rejected) * 65.59 * $diff / ($current_time - $global_start_time + 0.00001)}]
+
+				say_status $rate $est_rate $total_accepted $total_rejected $current_nonce
 			}
-
-			# set rate [expr {$nonces / ($dt * 1000.0)}]
-			set rate [expr {$nonces / ($dt * 1.0)}]
-			set current_time [clock seconds]
-			
-			# Adding 0.00001 to the denom is a quick way to avoid divide by zero :P
-			
-			# BTC: each share is worth ~(2^32 / 1,000,000) MH/s
-			# set est_rate [expr {($total_accepted + $total_rejected) * 4294.967296 / ($current_time - $global_start_time + 0.00001)}]
-			
-			# LTC: each share is worth ~(2^32 / 0x7ff / 1,000) kH/s ... sort of a guess really
-			# Difficulty is calculated from target ...
-			set est_rate [expr {($total_accepted + $total_rejected) * 65.59 * $diff / ($current_time - $global_start_time + 0.00001)}]
-
-			say_status $rate $est_rate $total_accepted $total_rejected $current_nonce
 		}
 	}
 
@@ -203,13 +209,17 @@ if {[fpga_init] == -1} {
 	exit
 }
 
-set fpga_name [get_fpga_name]
-puts "Mining FPGA Found: $fpga_name\n\n"
+set fpga_names [get_fpga_name]
 
-if {[get_current_fpga_nonce] == -1} {
-	puts "WARNING: The FPGA's mining firmware does not report a hashrate. Status messages will show 0.00 MH/s, but the FPGA should still be running. Check the estimated rate for approximate hashing rate after shares have been submitted.\n\n"
+foreach fpga_name $fpga_names {
+	puts "Mining FPGA Found: $fpga_name\n\n"
 }
 
+foreach fpga [ array names fpgas ] {
+	if {[get_current_fpga_nonce $fpga $fpgas($fpga) ] == -1} {
+		puts "WARNING: The FPGA's mining firmware does not report a hashrate. Status messages will show 0.00 MH/s, but the FPGA should still be running. Check the estimated rate for approximate hashing rate after shares have been submitted.\n\n"
+	}
+}
 source config.tcl
 set userpass [::base64::encode $userpass]
 set global_start_time [clock seconds]
@@ -234,16 +244,18 @@ while {1} {
 	}
 
 	if {$newwork != -1} {
-		# Check to see if the FPGA completed any results while we were getting new work.
-		set golden_nonce [get_result_from_fpga]
+		foreach fpga [ array names fpgas ] {
+			# Check to see if the FPGA completed any results while we were getting new work.
+			set golden_nonce [get_result_from_fpga $fpga $fpgas($fpga) ]
 
-		if {$golden_nonce != -1 && [array exists work]} {
-			submit_nonce [array get work] $golden_nonce
+			if {$golden_nonce != -1 && [array exists work]} {
+				submit_nonce [array get work] $golden_nonce
+			}
+
+			push_work_to_fpga $newwork
+			unset work
+			array set work $newwork
 		}
-
-		push_work_to_fpga $newwork
-		unset work
-		array set work $newwork
 	}
 
 	# Even if we couldn't get new work above, we should still loop looking for results,
