@@ -128,6 +128,7 @@ proc wait_for_golden_ticket {timeout} {
 				#XXX:
 				#if we have more than 1 fpga we should divide the whole nonce space
 				#lets design a scenario with two boards
+				#puts "current nonce $current_nonce and last nonce $last_nonce"
 				if {$current_nonce < $last_nonce } {
 					set nonces [expr {$current_nonce + (0xFFFFFFFF - $last_nonce) + 1}]
 				} else {
@@ -247,7 +248,7 @@ while {1} {
 		foreach fpga [ array names fpgas ] {
 			# Check to see if the FPGA completed any results while we were getting new work.
 			set golden_nonce [get_result_from_fpga $fpga $fpgas($fpga) ]
-
+			puts "golden_nonce = $golden_nonce and fpga = $fpga"
 			if {$golden_nonce != -1 && [array exists work]} {
 				submit_nonce [array get work] $golden_nonce
 			}

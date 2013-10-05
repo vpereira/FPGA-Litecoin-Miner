@@ -18,30 +18,26 @@ proc fpga_init {} {
 	if { [ array size fpgas ] <= 0 } {
 		return -1
 	}
-	foreach fpga_name [ array names fpgas ] {
-		set hardware_name $fpga_name
-		set device_name $fpgas($hardware_name)
-		start_probe $hardware_name $device_name
+	foreach fpga [ array names fpgas ] {
 		#it should be as well an array?
-		set fpga_last_nonces($fpga_name) [wrp_read_instance $hardware_name $device_name GNON]
+		set fpga_last_nonces($fpga) [wrp_read_instance $fpga $fpgas($fpga) GNON]
 		#debug
-		end_probe
-		lappend fpga_names "$hardware_name $device_name"
+		lappend fpga_names "$fpga $fpgas($fpga)"
 	}
 	return 0
 }
 
 
 proc wrp_write_instance { hw dev cmd data } { 
-	#start_probe $hw $dev
+	start_probe $hw $dev
 	write_instance $cmd $data
-	#end_probe
+	end_probe
 }
 
 proc wrp_read_instance { hw dev cmd } { 
-	#start_probe $hw $dev
+	start_probe $hw $dev
 	set ret [ read_instance $cmd ]
-	#end_probe
+	end_probe
 	return $ret
 }
 proc start_probe { hwname devname } { 
@@ -57,7 +53,6 @@ proc end_probe {} {
 # TODO
 # set different nonce range for each FPGA
 proc push_work_to_fpga {workl} {
-	global fpga_last_nonce
 	global verbose
 	global testmode
 	global test_prevnonce
@@ -99,35 +94,32 @@ proc push_work_to_fpga {workl} {
 	
 	# work(data) is 128 bytes (ie the 80 byte header, padded to 128 bytes as per sha256)
 	# we reverse the string first, so need to count backwards when indexing
-	foreach fpga_name [ array names fpgas ] {
-		set hardware_name $fpga_name
-		set device_name $fpgas($hardware_name)
-		start_probe $hardware_name $device_name
-		wrp_write_instance $hardware_name $device_name "DAT1" [string range $revdata 192 255]
-		wrp_write_instance $hardware_name $device_name "DAT2" [string range $revdata 128 191]
-		wrp_write_instance $hardware_name $device_name "DAT3" $data3
+	foreach fpga [ array names fpgas ] {
+		globa verbose
+		wrp_write_instance $fpga $fpgas($fpga)  "DAT1" [string range $revdata 192 255]
+		wrp_write_instance $fpga $fpgas($fpga)  "DAT2" [string range $revdata 128 191]
+		wrp_write_instance $fpga $fpgas($fpga)  "DAT3" $data3
 
 		# Only write target the first time (and if it subsequently changes)
 		if { $prevtarget != $target } {
-			wrp_write_instance $hardware_name $device_name "TARG" $target
+			wrp_write_instance $fpga $fpgas($fpga) "TARG" $target
 			set diff [expr 0x0000ffff / 0x$target ]
 			puts "new target $target diff $diff"
 		}
 		
 		if { $verbose } {
-		# Write it out for DEBUG
-		puts [string range $revdata 192 255]
-		puts [string range $revdata 128 191]
-		puts $data3
-		if { $prevtarget != $target } {
-			puts "target $target"
-		}
+			# Write it out for DEBUG
+			puts [string range $revdata 192 255]
+			puts [string range $revdata 128 191]
+			puts $data3
+			if { $prevtarget != $target } {
+				puts "target $target"
+			}
 		}
 		
 		set prevtarget $target
 		# Reset the last seen nonce, since we've just given the FPGA new work
-		set fpga_last_nonces($hardware_name) [wrp_read_instance $hardware_name $device_name GNON]
-		end_probe
+		set fpga_last_nonces($fpga) [wrp_read_instance $fpga $fpgas($fpga) GNON]
        }
 }
 
@@ -142,12 +134,10 @@ proc clear_fpga_work {} {
 # If no results are available, returns -1
 proc get_result_from_fpga { hw dev } {
 	global fpga_last_nonces
-        start_probe $hw $dev
 	set golden_nonce [wrp_read_instance $hw $dev GNON]
-	end_probe 
-
+	puts "gn $golden_nonce ln $fpga_last_nonces($hw) on  $hw"
 	if { [string compare $golden_nonce $fpga_last_nonces($hw) ] != 0} {
-		set fpga_last_nonce($hw) $golden_nonce
+		set fpga_last_nonces($hw) $golden_nonce
 		# Convert from Hex to integer
 		set nonce [expr 0x$golden_nonce]
 		return $nonce
@@ -161,13 +151,10 @@ proc get_result_from_fpga { hw dev } {
 # This can be sampled to calculate how fast the FPGA is running.
 # Returns -1 if that information is not available.
 proc get_current_fpga_nonce { hw dev } {
-	start_probe $hw $dev
 	if { [instance_exists NONC] } {
 		set nonce [wrp_read_instance $hw $dev NONC]
-		end_probe
 		return [expr 0x$nonce]
 	} else {
-		end_probe
 		return -1
 	}
 }
