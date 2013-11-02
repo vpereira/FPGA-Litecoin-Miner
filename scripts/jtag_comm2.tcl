@@ -39,8 +39,8 @@ proc wrp_read_instance { hw dev cmd } {
 	end_probe
 	return $ret
 }
-proc start_probe { hwname devname } { 
-	start_insystem_source_probe -hardware_name $hwname -device_name $devname
+proc start_probe { hw dev } { 
+	start_insystem_source_probe -hardware_name $hw -device_name $dev
 }
 
 proc end_probe {} { 
@@ -51,13 +51,14 @@ proc end_probe {} {
 # already multifpga
 # TODO
 # set different nonce range for each FPGA
-proc push_work_to_fpga {workl} {
+proc push_work_to_fpga { workl hw dev } {
 	global verbose
 	global testmode
 	global test_prevnonce
 	global prevtarget
 	global diff
 	global fpgas
+ 
 
 	array set work $workl
 
@@ -94,33 +95,31 @@ proc push_work_to_fpga {workl} {
 	
 	# work(data) is 128 bytes (ie the 80 byte header, padded to 128 bytes as per sha256)
 	# we reverse the string first, so need to count backwards when indexing
-	foreach fpga [ array names fpgas ] {
-		global verbose
-		wrp_write_instance $fpga $fpgas($fpga)  "DAT1" [string range $revdata 192 255]
-		wrp_write_instance $fpga $fpgas($fpga)  "DAT2" [string range $revdata 128 191]
-		wrp_write_instance $fpga $fpgas($fpga)  "DAT3" $data3
+	global verbose
+	wrp_write_instance $hw $dev  "DAT1" [string range $revdata 192 255]
+	wrp_write_instance $hw $dev  "DAT2" [string range $revdata 128 191]
+	wrp_write_instance $hw $dev  "DAT3" $data3
 
-		# Only write target the first time (and if it subsequently changes)
+	# Only write target the first time (and if it subsequently changes)
+	if { $prevtarget != $target } {
+		wrp_write_instance $hw $dev "TARG" $target
+		set diff [expr 0x0000ffff / 0x$target ]
+		puts "new target $target diff $diff"
+	}
+	
+	if { $verbose } {
+		# Write it out for DEBUG
+		puts [string range $revdata 192 255]
+		puts [string range $revdata 128 191]
+		puts $data3
 		if { $prevtarget != $target } {
-			wrp_write_instance $fpga $fpgas($fpga) "TARG" $target
-			set diff [expr 0x0000ffff / 0x$target ]
-			puts "new target $target diff $diff"
+			puts "target $target"
 		}
-		
-		if { $verbose } {
-			# Write it out for DEBUG
-			puts [string range $revdata 192 255]
-			puts [string range $revdata 128 191]
-			puts $data3
-			if { $prevtarget != $target } {
-				puts "target $target"
-			}
-		}
-		
-		set prevtarget $target
-		# Reset the last seen nonce, since we've just given the FPGA new work
-		set fpga_last_nonces($fpga) [wrp_read_instance $fpga $fpgas($fpga) GNON]
-       }
+	}
+	
+	set prevtarget $target
+	# Reset the last seen nonce, since we've just given the FPGA new work
+	set fpga_last_nonces($hw) [wrp_read_instance $hw $dev GNON]
 }
 
 

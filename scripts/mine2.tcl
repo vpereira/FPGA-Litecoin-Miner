@@ -41,7 +41,7 @@ set verbose 1
 # Reads getwork (including nonce) from a file ...
 set testmode 0
 # Delay between getwork requests (in seconds) ...
-set ask_rate 15
+set ask_rate 60
 			
 set total_accepted 0
 set total_rejected 0
@@ -67,7 +67,7 @@ proc say_error {msg} {
 	puts stderr "\[$t\] $msg"
 }
 
-proc say_status {rate est_rate accepted rejected curnonce} {
+proc say_status {fpga rate est_rate accepted rejected curnonce} {
 	global verbose
 	set submitted [expr {$rejected + $accepted}]
 
@@ -82,9 +82,9 @@ proc say_status {rate est_rate accepted rejected curnonce} {
 	
 	# LTC ...
 	if { $verbose } {
-		say_line [format "%.2f kH/s (~%.2f kH/s) \[Rej: %i/%i (%.2f%%)\] n=%08x" $rate $est_rate $rejected $submitted $rej_rate $curnonce]
+		say_line [format "%s %.2f kH/s (~%.2f kH/s) \[Rej: %i/%i (%.2f%%)\] n=%08x" $fpga $rate $est_rate $rejected $submitted $rej_rate $curnonce]
 	} else {
-		say_line [format "%.2f kH/s (~%.2f kH/s) \[Rej: %i/%i (%.2f%%)\]" $rate $est_rate $rejected $submitted $rej_rate]
+		say_line [format "%s %.2f kH/s (~%.2f kH/s) \[Rej: %i/%i (%.2f%%)\]" $fpga $rate $est_rate $rejected $submitted $rej_rate]
 	}
 }
 
@@ -96,9 +96,7 @@ proc wait_for_golden_ticket {timeout} {
 	global global_start_time
 	global diff
 	global fpgas
-	#puts "Current nonce"
-	#set current_nonce [read_instance GNON]
-	#puts $current_nonce
+
 	set begin_time [clock clicks -milliseconds]
 
 	#puts "FPGA is now searching for lottery ticket..."
@@ -120,7 +118,6 @@ proc wait_for_golden_ticket {timeout} {
 			# Or the JTAG comms might throttle back our CPU usage anyway.
 			# If the FPGA had a proper results queue we could just sleep for a second, but
 			# for now we might as well loop as fast as possible
-			
 			set now [clock clicks -milliseconds]
 			if { [expr {$now - $begin_time}] >= 2000 } {
 				incr timeout -2
@@ -145,8 +142,7 @@ proc wait_for_golden_ticket {timeout} {
 					set dt 1
 				}
 
-				# set rate [expr {$nonces / ($dt * 1000.0)}]
-				set rate [expr {$nonces / ($dt * 1.0)} * [array size fpgas]]
+				set rate [expr {$nonces / ($dt * 1000.0)}]
 				set current_time [clock seconds]
 				
 				# Adding 0.00001 to the denom is a quick way to avoid divide by zero :P
@@ -158,7 +154,7 @@ proc wait_for_golden_ticket {timeout} {
 				# Difficulty is calculated from target ...
 				set est_rate [expr {($total_accepted + $total_rejected) * 65.59 * $diff / ($current_time - $global_start_time + 0.00001)}]
 
-				say_status $rate $est_rate $total_accepted $total_rejected $current_nonces($fpga)
+				say_status $fpga $rate $est_rate $total_accepted $total_rejected $current_nonces($fpga)
 			}
 		}
 	}
@@ -232,6 +228,10 @@ set global_start_time [clock seconds]
 
 set work -1
 
+if { [ array size fpgas ] > 1 } {
+	set ask_rate [ expr {$ask_rate / [ array size fpgas ]} ]  
+}
+
 while {1} {
 	# Get new work
 	if { $testmode } {
@@ -252,12 +252,12 @@ while {1} {
 		foreach fpga [ array names fpgas ] {
 			# Check to see if the FPGA completed any results while we were getting new work.
 			set golden_nonce [get_result_from_fpga $fpga $fpgas($fpga) ]
-			#puts "golden_nonce = $golden_nonce and fpga = $fpga"
+			puts "golden_nonce = $golden_nonce and fpga = $fpga"
 			if {$golden_nonce != -1 && [array exists work]} {
 				submit_nonce [array get work] $golden_nonce
 			}
 
-			push_work_to_fpga $newwork
+			push_work_to_fpga $newwork $fpga $fpgas($fpga)
 			unset work
 			array set work $newwork
 		}
