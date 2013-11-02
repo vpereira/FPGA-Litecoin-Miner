@@ -37,7 +37,7 @@ source jtag_comm2.tcl
 # Configuration
 # -------------
 # Additional DEBUG output getwork and current nonce ...
-set verbose 1
+set verbose 0
 # Reads getwork (including nonce) from a file ...
 set testmode 0
 # Delay between getwork requests (in seconds) ...
@@ -109,7 +109,6 @@ proc wait_for_golden_ticket {timeout} {
 			set last_nonces($fpga) [get_current_fpga_nonce $fpga $fpgas($fpga) ]
 			set golden_nonce [get_result_from_fpga $fpga $fpgas($fpga) ]
 
-			#puts "last_nonce $fpga  = $last_nonces($fpga)"
 			if {$golden_nonce != -1} {
 				return $golden_nonce
 			}
@@ -129,7 +128,6 @@ proc wait_for_golden_ticket {timeout} {
 				#XXX:
 				#if we have more than 1 fpga we should divide the whole nonce space
 				#lets design a scenario with two boards
-				#puts "current nonce $current_nonce and last nonce $last_nonce"
 				if {$current_nonces($fpga) < $last_nonces($fpga) } {
 					set nonces [expr {$current_nonces($fpga) + (0xFFFFFFFF - $last_nonces($fpga)) + 1}]
 				} else {
@@ -252,7 +250,6 @@ while {1} {
 		foreach fpga [ array names fpgas ] {
 			# Check to see if the FPGA completed any results while we were getting new work.
 			set golden_nonce [get_result_from_fpga $fpga $fpgas($fpga) ]
-			puts "golden_nonce = $golden_nonce and fpga = $fpga"
 			if {$golden_nonce != -1 && [array exists work]} {
 				submit_nonce [array get work] $golden_nonce
 			}
