@@ -19,7 +19,6 @@ proc fpga_init {} {
 		return -1
 	}
 	foreach fpga [ array names fpgas ] {
-		#it should be as well an array?
 		set fpga_last_nonces($fpga) [wrp_read_instance $fpga $fpgas($fpga) GNON]
 		#debug
 		lappend fpga_names "$fpga $fpgas($fpga)"
@@ -58,7 +57,8 @@ proc push_work_to_fpga {workl} {
 	global test_prevnonce
 	global prevtarget
 	global diff
-	
+	global fpgas
+
 	array set work $workl
 
 	set target [string range [reverseHex $work(target)] 0 7]
@@ -95,7 +95,7 @@ proc push_work_to_fpga {workl} {
 	# work(data) is 128 bytes (ie the 80 byte header, padded to 128 bytes as per sha256)
 	# we reverse the string first, so need to count backwards when indexing
 	foreach fpga [ array names fpgas ] {
-		globa verbose
+		global verbose
 		wrp_write_instance $fpga $fpgas($fpga)  "DAT1" [string range $revdata 192 255]
 		wrp_write_instance $fpga $fpgas($fpga)  "DAT2" [string range $revdata 128 191]
 		wrp_write_instance $fpga $fpgas($fpga)  "DAT3" $data3
@@ -135,7 +135,6 @@ proc clear_fpga_work {} {
 proc get_result_from_fpga { hw dev } {
 	global fpga_last_nonces
 	set golden_nonce [wrp_read_instance $hw $dev GNON]
-	puts "gn $golden_nonce ln $fpga_last_nonces($hw) on  $hw"
 	if { [string compare $golden_nonce $fpga_last_nonces($hw) ] != 0} {
 		set fpga_last_nonces($hw) $golden_nonce
 		# Convert from Hex to integer

@@ -41,7 +41,7 @@ set verbose 1
 # Reads getwork (including nonce) from a file ...
 set testmode 0
 # Delay between getwork requests (in seconds) ...
-set ask_rate 20
+set ask_rate 15
 			
 set total_accepted 0
 set total_rejected 0
@@ -102,12 +102,16 @@ proc wait_for_golden_ticket {timeout} {
 	set begin_time [clock clicks -milliseconds]
 
 	#puts "FPGA is now searching for lottery ticket..."
-
+	array set last_nonces {}
+	array set current_nonces {}
 	while {$timeout > 0} {
  		foreach fpga [ array names fpgas ] { 
-			set last_nonce [get_current_fpga_nonce $fpga $fpgas($fpga) ]
+			#TODO
+			#last_nonce and golden_nonce should be a hash
+			set last_nonces($fpga) [get_current_fpga_nonce $fpga $fpgas($fpga) ]
 			set golden_nonce [get_result_from_fpga $fpga $fpgas($fpga) ]
 
+			#puts "last_nonce $fpga  = $last_nonces($fpga)"
 			if {$golden_nonce != -1} {
 				return $golden_nonce
 			}
@@ -121,7 +125,7 @@ proc wait_for_golden_ticket {timeout} {
 			if { [expr {$now - $begin_time}] >= 2000 } {
 				incr timeout -2
 
-				set current_nonce [get_current_fpga_nonce $fpga $fpgas($fpga) ]
+				set current_nonces($fpga) [get_current_fpga_nonce $fpga $fpgas($fpga) ]
 				set dt [expr {$now - $begin_time}]
 				set begin_time $now
 
@@ -129,13 +133,13 @@ proc wait_for_golden_ticket {timeout} {
 				#if we have more than 1 fpga we should divide the whole nonce space
 				#lets design a scenario with two boards
 				#puts "current nonce $current_nonce and last nonce $last_nonce"
-				if {$current_nonce < $last_nonce } {
-					set nonces [expr {$current_nonce + (0xFFFFFFFF - $last_nonce) + 1}]
+				if {$current_nonces($fpga) < $last_nonces($fpga) } {
+					set nonces [expr {$current_nonces($fpga) + (0xFFFFFFFF - $last_nonces($fpga)) + 1}]
 				} else {
-					set nonces [expr {$current_nonce - $last_nonce + 1}]
+					set nonces [expr {$current_nonces($fpga) - $last_nonces($fpga) + 1}]
 				}
 
-				set last_nonce $current_nonce
+				set last_nonces($fpga) $current_nonces($fpga)
 
 				if {$dt == 0} {
 					set dt 1
@@ -154,7 +158,7 @@ proc wait_for_golden_ticket {timeout} {
 				# Difficulty is calculated from target ...
 				set est_rate [expr {($total_accepted + $total_rejected) * 65.59 * $diff / ($current_time - $global_start_time + 0.00001)}]
 
-				say_status $rate $est_rate $total_accepted $total_rejected $current_nonce
+				say_status $rate $est_rate $total_accepted $total_rejected $current_nonces($fpga)
 			}
 		}
 	}
@@ -248,7 +252,7 @@ while {1} {
 		foreach fpga [ array names fpgas ] {
 			# Check to see if the FPGA completed any results while we were getting new work.
 			set golden_nonce [get_result_from_fpga $fpga $fpgas($fpga) ]
-			puts "golden_nonce = $golden_nonce and fpga = $fpga"
+			#puts "golden_nonce = $golden_nonce and fpga = $fpga"
 			if {$golden_nonce != -1 && [array exists work]} {
 				submit_nonce [array get work] $golden_nonce
 			}
