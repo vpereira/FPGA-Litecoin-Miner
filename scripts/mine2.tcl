@@ -41,7 +41,7 @@ set verbose 0
 # Reads getwork (including nonce) from a file ...
 set testmode 0
 # Delay between getwork requests (in seconds) ...
-set ask_rate 60
+set ask_rate 20
 			
 set total_accepted 0
 set total_rejected 0
@@ -140,7 +140,7 @@ proc wait_for_golden_ticket {timeout} {
 					set dt 1
 				}
 
-				set rate [expr {$nonces / ($dt * 1000.0)}]
+				set rate [expr {double($nonces) / ($dt + 0.00001)}]
 				set current_time [clock seconds]
 				
 				# Adding 0.00001 to the denom is a quick way to avoid divide by zero :P
